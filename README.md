@@ -5,7 +5,7 @@ This repository contains a **Python implementation of the ROS method**, which is
 
 ## **Files Included**
 - `ros_implementation.py` – Python script implementing the ROS method.
-- `ros_analysis.ipynb` – Jupyter Notebook explaining the methodology & running an example.
+- `ros_notebook.ipynb` – Jupyter Notebook explaining the methodology & running an example.
 - `MPCA_benz.csv` – Sample dataset (Benzene Concentration data).
 - `environment.yml` – Conda environment file for setting up dependencies.
 
@@ -24,7 +24,7 @@ This repository contains a **Python implementation of the ROS method**, which is
    ```bash
    jupyter lab
    ```
-   Then, open **`ros_analysis.ipynb`** to explore the analysis.
+   Then, open **`ros_notebook.ipynb`** to explore the analysis.
 
 ## **How to Use the ROS Method**
 ```python
