@@ -62,6 +62,7 @@ The dataset contains **Benzene concentration measurements**, where some values a
 ✔️ Generates **Q-Q plots & summary statistics**    
 
 ## **References**
+- - Helsel, D. R. (2005). *Nondetects and Data Analysis: Statistics for Censored Environmental Data*.
 - Helsel, D.R. (2012). *Statistics for Censored Environmental Data Using Minitab and R*  
 - **NADA R Package**: [CRAN NADA](https://cran.r-project.org/web/packages/NADA/index.html)
 
