@@ -12,7 +12,7 @@ This repository contains a **Python implementation of the ROS method**, which is
 ## **Installation & Setup**
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/ROS-Method-Python.git
+   git clone https://github.com/Aliiivalipoor/ROS-Method-Python.git
    cd ROS-Method-Python
    ```
 2. Set up the Conda environment:
