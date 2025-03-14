@@ -59,8 +59,7 @@ The dataset contains **Benzene concentration measurements**, where some values a
 ✔️ Python alternative to the **NADA package in R**  
 ✔️ Handles **left-censored data** efficiently  
 ✔️ Supports **log-normal & normal distributions**  
-✔️ Generates **Q-Q plots & summary statistics**  
-✔️ Compatible with **Jupyter Notebooks & Pandas**  
+✔️ Generates **Q-Q plots & summary statistics**    
 
 ## **References**
 - Helsel, D.R. (2012). *Statistics for Censored Environmental Data Using Minitab and R*  
