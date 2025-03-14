@@ -73,11 +73,11 @@ Feel free to **open an issue** or **submit a pull request** if you:
 - Want to **add new features**
 
 ## **License**
-This project is licensed under the **MIT License** – you are free to use, modify, and distribute it.
+This project is for **personal use** and does not have a specific license. If you wish to use or modify this code, please contact me.
 
 ## **Contact**
 If you have any questions, feel free to reach out!  
-✉️ **Email:** [Your Email]  
+✉️ **Email:** Aliiiivalipoor@gmail.com  
 📌 **GitHub Issues:** Open a new issue in this repository  
 
 ---
