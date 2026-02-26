@@ -6,6 +6,26 @@ This repository contains a **Python implementation of the ROS method**, which is
 
 ---
 
+## **Background**
+
+ROS is a **parametric method** designed to estimate summary statistics (mean, standard deviation,
+quantiles) for datasets that contain **non-detects** (values below a detection or reporting limit).
+Rather than discarding non-detects or substituting them with arbitrary constants (e.g., LOQ/2),
+ROS leverages the distributional structure of the detected values to extrapolate plausible values
+for the censored observations.
+
+The algorithm proceeds as follows:
+1. Assign **Helsel-Cohn plotting positions** to all data points (both detected and non-detected),
+   accounting for multiple detection limits if present.
+2. Fit a **linear regression** of the transformed detected values against their normal quantiles
+   (i.e., fit the data on a probability plot).
+3. Use the fitted regression line to **predict transformed values** for the censored observations
+   based on their plotting positions.
+4. **Back-transform** censored predictions to the original scale.
+5. Compute **summary statistics** using the combined set of detected and modeled censored values.
+
+---
+
 ## **Files Included**
 
 | File | Description |
@@ -37,26 +57,6 @@ This repository contains a **Python implementation of the ROS method**, which is
    jupyter lab
    ```
    Then open **`ros_notebook.ipynb`** to explore the analysis.
-
----
-
-## **Background**
-
-ROS is a **parametric method** designed to estimate summary statistics (mean, standard deviation,
-quantiles) for datasets that contain **non-detects** (values below a detection or reporting limit).
-Rather than discarding non-detects or substituting them with arbitrary constants (e.g., LOQ/2),
-ROS leverages the distributional structure of the detected values to extrapolate plausible values
-for the censored observations.
-
-The algorithm proceeds as follows:
-1. Assign **Helsel-Cohn plotting positions** to all data points (both detected and non-detected),
-   accounting for multiple detection limits if present.
-2. Fit a **linear regression** of the transformed detected values against their normal quantiles
-   (i.e., fit the data on a probability plot).
-3. Use the fitted regression line to **predict transformed values** for the censored observations
-   based on their plotting positions.
-4. **Back-transform** censored predictions to the original scale.
-5. Compute **summary statistics** using the combined set of detected and modeled censored values.
 
 ---
 
