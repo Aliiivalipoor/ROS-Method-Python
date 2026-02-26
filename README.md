@@ -40,6 +40,26 @@ This repository contains a **Python implementation of the ROS method**, which is
 
 ---
 
+## **Background**
+
+ROS is a **parametric method** designed to estimate summary statistics (mean, standard deviation,
+quantiles) for datasets that contain **non-detects** (values below a detection or reporting limit).
+Rather than discarding non-detects or substituting them with arbitrary constants (e.g., LOQ/2),
+ROS leverages the distributional structure of the detected values to extrapolate plausible values
+for the censored observations.
+
+The algorithm proceeds as follows:
+1. Assign **Helsel-Cohn plotting positions** to all data points (both detected and non-detected),
+   accounting for multiple detection limits if present.
+2. Fit a **linear regression** of the transformed detected values against their normal quantiles
+   (i.e., fit the data on a probability plot).
+3. Use the fitted regression line to **predict transformed values** for the censored observations
+   based on their plotting positions.
+4. **Back-transform** censored predictions to the original scale.
+5. Compute **summary statistics** using the combined set of detected and modeled censored values.
+
+---
+
 ## **How to Use the ROS Method**
 
 ### **Single Dataset**
@@ -109,6 +129,8 @@ where some values are censored (below detection limits).
 | `Benzene` | Measured benzene concentration |
 | `BenzCen` | Boolean flag (`True` if censored) |
 
+---
+
 ### `multi_substance_example.csv`
 
 > ⚠️ **This dataset is entirely artificial and was created for demonstration purposes only.**
@@ -116,7 +138,15 @@ where some values are censored (below detection limits).
 > real environmental measurements and should not be used for any scientific or regulatory conclusions.
 
 Contains **600 simulated water quality measurements** for six
-**per- and polyfluoroalkyl substances (PFAS)** — 100 samples per substance.
+**per- and polyfluoroalkyl substances (PFAS)** — a group of synthetic chemicals of significant
+environmental and public health concern, commonly detected in drinking water, groundwater,
+and surface water worldwide. Each substance has **100 samples**, with concentrations drawn
+from lognormal distributions with substance-specific parameters.
+
+Censoring was applied by designating the lowest measured values as non-detects (i.e., values
+reported as "below the LOQ"), consistent with how real environmental non-detects arise in practice.
+Detected values are guaranteed to exceed their respective LOQ.
+
 The six substances were deliberately chosen to cover **all scenarios** that `fit_dataframe()` can encounter:
 
 | Substance | Full Name | LOQ (ng/L) | Detected | Censored | % Censored | Expected Behavior |
@@ -141,11 +171,50 @@ The six substances were deliberately chosen to cover **all scenarios** that `fit
 
 ✔️ Python alternative to the **NADA package in R**  
 ✔️ Handles **left-censored data** efficiently  
-✔️ Supports **multiple detection limits** via Helsel-Cohn plotting positions  
+✔️ Handles **multiple detection limits** via Helsel-Cohn plotting positions  
 ✔️ Supports **log-normal & normal distributions**  
 ✔️ Generates **Q-Q plots & summary statistics**  
+✔️ Provides **model diagnostics**: AIC, BIC, PPCC, Shapiro-Francia W  
 ✔️ Supports **batch processing** of multi-substance DataFrames via `fit_dataframe()`  
 ✔️ Falls back to **LOQ × factor substitution** when ROS is not applicable  
+✔️ Issues **warnings** when results may be unreliable (high censoring rate, few detections)  
+
+---
+
+## **Model Diagnostics**
+
+After fitting, the following diagnostics are available via `ros.summary()`:
+
+| Diagnostic | Description |
+|------------|-------------|
+| **AIC** | Akaike Information Criterion — lower is better |
+| **BIC** | Bayesian Information Criterion — lower is better |
+| **PPCC** | Probability Plot Correlation Coefficient — measures goodness-of-fit to the assumed distribution; values close to 1 indicate a good fit |
+| **Shapiro-Francia W** | Normality test applied to the (log-)transformed modeled data; values close to 1 indicate normality |
+
+---
+
+## **Applicability and Limitations**
+
+- ROS requires a **detection frequency > 50%** and at least **3 detected values** to produce
+  statistically valid estimates. With fewer detected values, results should be interpreted
+  with great caution or avoided altogether.
+- For best results, a minimum of **8–10 observations** is recommended.
+- ROS is designed for **left-censored data** (non-detects below a detection limit). It is **not**
+  appropriate for right-censored or interval-censored data without modification.
+- The distributional assumption (log-normal or normal) should be evaluated using the **PPCC**
+  or **Q-Q plot** before relying on summary statistics.
+
+---
+
+## **Differences from R's NADA Package**
+
+| Aspect | This Implementation | R's NADA |
+|--------|---------------------|----------|
+| Regression | `numpy.linalg.lstsq` + `sklearn.LinearRegression` | `lm()` — results numerically equivalent |
+| Normal quantiles | `scipy.stats.norm.ppf()` | `qnorm()` — negligible floating-point differences |
+| Shapiro-Francia W | Approximated via `scipy.stats.shapiro` (Shapiro-Wilk) | Exact Shapiro-Francia statistic |
+| Confidence intervals for `pexceed` | ❌ Not yet implemented | ✅ Available |
 
 ---
 
