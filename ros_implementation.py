@@ -16,8 +16,8 @@ class ROS:
 
     Author: Ali Valipoor
     Email: Aliiivalipoor@gmail.com
-    Date: March 2025
-    Version: 1.0
+    Date: February 2026
+    Version: 2.0
 
     Reference:
     ----------
@@ -25,48 +25,119 @@ class ROS:
     - Helsel, D.R. (2012). Statistics for Censored Environmental Data Using Minitab and R.
     - NADA package in R: https://cran.r-project.org/web/packages/NADA/index.html
 
+    Background:
+    -----------
+    ROS is a parametric method designed to estimate summary statistics (mean, standard deviation,
+    quantiles) for datasets that contain non-detects (values below a detection or reporting limit).
+    Rather than discarding non-detects or substituting them with arbitrary constants (e.g., LOQ/2),
+    ROS leverages the distributional structure of the detected values to extrapolate plausible values
+    for the censored observations.
+
+    The algorithm proceeds as follows:
+    1. Assign Helsel-Cohn plotting positions to all data points (both detected and non-detected),
+       accounting for multiple detection limits if present.
+    2. Fit a linear regression of the transformed detected values against their normal quantiles
+       (i.e., fit the data on a probability plot).
+    3. Use the fitted regression line to predict transformed values for the censored observations
+       based on their plotting positions.
+    4. Back-transform censored predictions to the original scale.
+    5. Compute summary statistics using the combined set of detected and modeled censored values.
+
     Key Features:
     -------------
     - Supports both **log-normal** and **normal** distributions.
-    - Implements Helsel-Cohn plotting position calculations.
-    - Provides model diagnostics such as AIC, BIC, PPCC, and Shapiro-Francia W.
-    - Includes statistical summary functions (mean, median, SD, quantiles).
-    - Allows graphical visualization using Q-Q plots.
+    - Handles **multiple detection limits** using Helsel-Cohn plotting position calculations.
+    - Automatically drops censored values exceeding the maximum uncensored value (as these
+      would be inconsistent with left-censored data and could distort the regression).
+    - Issues **warnings** when the proportion of censored data exceeds 80%, or when fewer than
+      3 detected values are available, as ROS estimates become unreliable under these conditions.
+    - Provides **model diagnostics** including:
+        - AIC (Akaike Information Criterion)
+        - BIC (Bayesian Information Criterion)
+        - PPCC (Probability Plot Correlation Coefficient): measures goodness-of-fit to the
+          assumed distribution; values close to 1 indicate good fit.
+        - Shapiro-Francia W: a normality test applied to the (log-)transformed modeled data.
+    - Provides **statistical summary functions**: mean, median, standard deviation, and quantiles
+      of the combined detected + modeled dataset.
+    - Supports **batch processing** of multi-substance DataFrames via `fit_dataframe()`, with
+      optional fallback to LOQ/2 substitution when ROS is not applicable.
+    - Allows **graphical visualization** using Q-Q plots comparing observed and modeled data.
 
-    Differences from R’s NADA:
+    Differences from R's NADA:
     --------------------------
-    - The regression is implemented using `scipy.stats` and `sklearn.linear_model.LinearRegression`.
-    - Normal quantile calculations are performed using `scipy.stats.norm.ppf()`, which may introduce slight variations.
-    - Confidence intervals for exceedance probabilities are **not yet implemented**.
-    - Fitting uses NumPy-based linear regression (`np.linalg.lstsq`) rather than R's built-in statistical functions.
-    - The Shapiro-Francia W test is implemented using `scipy.stats`.
+    - The regression is implemented using `numpy.linalg.lstsq` and `sklearn.linear_model.LinearRegression`,
+      rather than R's built-in `lm()` function — results should be numerically equivalent.
+    - Normal quantile calculations are performed using `scipy.stats.norm.ppf()`, which may introduce
+      negligible floating-point differences compared to R's `qnorm()`.
+    - Confidence intervals for exceedance probabilities (`pexceed`) are **not yet implemented**.
+    - The Shapiro-Francia W is approximated here using `scipy.stats.shapiro` (Shapiro-Wilk), which
+      is closely related but not identical to the Shapiro-Francia statistic used in R's NADA package.
+
+    Applicability and Limitations:
+    -------------------------------
+    - ROS requires a **detection frequency > 50%** and at least **3 detected values** to produce
+      statistically valid estimates. With fewer detected values, results should be interpreted
+      with great caution or avoided altogether.
+    - For best results, a minimum of **8–10 observations** is recommended.
+    - ROS is designed for **left-censored data** (non-detects below a detection limit). It is not
+      appropriate for right-censored or interval-censored data without modification.
+    - The distributional assumption (log-normal or normal) should be evaluated using the PPCC
+      or Q-Q plot before relying on summary statistics.
 
     Usage:
     ------
-    ```
+    Basic fit:
+    ```python
     ros = ROS(distribution="log-normal")  # or "normal"
     ros.fit(obs=[1.2, 0.5, 0.3, 2.1, 5.0], censored=[False, True, True, False, False])
-    print(ros.summary())  # Summary of the model
-    ros.plot_qq()  # Q-Q plot of modeled vs. observed values
+    print(ros.summary())       # Summary of the model
+    ros.plot_qq()              # Q-Q plot of modeled vs. observed values
+    ```
+
+    Batch processing over a DataFrame:
+    ```python
+    df_result = ros.fit_dataframe(
+        df,
+        concentration_col="Concentration",
+        censored_col="Below LOQ",
+        loq_col="LOQ",
+        loq_replacement=True,   # Fall back to LOQ/2 when ROS is not applicable
+        loq_factor=0.5          # Use LOQ * 0.5 as the substitution value (default)
+    )
     ```
 
     Attributes:
     -----------
-    - `obs` (np.array): Original observations.
-    - `censored` (np.array): Boolean mask of censored data.
-    - `pp` (np.array): Calculated plotting positions.
-    - `modeled` (np.array): Estimated values for censored observations.
-    - `aic`, `bic`, `ppcc`, `shapiro_w`: Model diagnostics.
+    - `obs` (np.ndarray): Sorted original observations (including censored values) after fitting.
+    - `censored` (np.ndarray): Boolean array indicating censored status (True = censored).
+    - `pp` (np.ndarray): Helsel-Cohn plotting positions assigned to each observation.
+    - `modeled` (np.ndarray): Combined array of detected values and ROS-modeled censored values.
+    - `model` (LinearRegression): Fitted sklearn LinearRegression object (intercept + slope on
+      the probability plot of the detected data).
+    - `aic` (float): Akaike Information Criterion of the fitted model (based on detected values only).
+    - `bic` (float): Bayesian Information Criterion of the fitted model.
+    - `ppcc` (float): Probability Plot Correlation Coefficient for the full modeled dataset.
+    - `shapiro_w` (float): Shapiro-Wilk W statistic for normality of the (log-)transformed modeled data.
+    - `distribution` (str): Distribution assumption used ('log-normal' or 'normal').
+    - `forward_transform` (callable): Transformation applied to data before regression (log for
+      log-normal, identity for normal).
+    - `reverse_transform` (callable): Inverse of the forward transform.
 
     Methods:
     --------
-    - `fit(obs, censored)`: Fit the ROS model to the given dataset.
-    - `predict(new_quantiles)`: Predict values for new normal quantiles.
-    - `summary()`: Print a detailed statistical summary.
-    - `to_dataframe()`: Convert results to a Pandas DataFrame.
-    - `plot_qq()`: Generate a Q-Q plot comparing observed and modeled data.
-    - `quantile(probs)`: Compute quantiles of the modeled dataset.
-    - `pexceed(newdata)`: Compute exceedance probabilities for new data.
+    - `fit(obs, censored)`: Fit the ROS model to the given dataset. Returns self.
+    - `predict(new_quantiles)`: Predict back-transformed values for given normal quantiles
+      using the fitted regression line.
+    - `mean()`: Compute the mean of the modeled dataset.
+    - `median()`: Compute the median of the modeled dataset.
+    - `sd()`: Compute the standard deviation of the modeled dataset (using n-1 denominator).
+    - `quantile(probs)`: Compute quantiles of the modeled dataset at the specified probabilities.
+    - `pexceed(newdata)`: Compute exceedance probabilities for new data values using the fitted model.
+    - `summary()`: Print and return a formatted statistical summary table.
+    - `to_dataframe()`: Return a DataFrame with obs, censored, pp, and modeled columns.
+    - `fit_dataframe(df, ...)`: Fit ROS across all substances in a DataFrame; falls back to
+      LOQ-based substitution when ROS is not applicable (if enabled).
+    - `plot_qq(figsize, title)`: Generate a Q-Q plot comparing observed and modeled data.
     """
 
     
@@ -124,6 +195,7 @@ class ROS:
         --------
         self : ROS object
         """
+
         # Convert inputs to numpy arrays
         obs = np.asarray(obs, dtype=float)
         censored = np.asarray(censored, dtype=bool)
@@ -552,6 +624,197 @@ class ROS:
             'pp': self.pp,
             'modeled': self.modeled
         })
+
+
+    def fit_dataframe(self, df, concentration_col="Concentration", censored_col="Below LOQ",
+                      loq_col="LOQ", loq_replacement=True, loq_factor=0.5):
+        """
+        Fit ROS to an entire DataFrame while preserving row order and handling censored data.
+
+        For each unique substance in the DataFrame, ROS is fitted independently. When ROS
+        cannot be applied (e.g., too few detected values), the method can optionally fall
+        back to substituting censored values with a fraction of the LOQ (e.g., LOQ / 2).
+
+        Preprocessing:
+        --------------
+        - Converts invalid values (negative concentrations) to NaN.
+        - Drops censored values exceeding the max uncensored value (inconsistent with
+          left-censoring; these would distort the ROS regression).
+        - Maintains original DataFrame row order throughout.
+
+        Parameters:
+        -----------
+        df : pandas.DataFrame
+            The input data containing concentration measurements, censoring flags,
+            and optionally the LOQ values.
+        concentration_col : str, optional
+            Column name containing the concentration values. Default: "Concentration".
+        censored_col : str, optional
+            Column name indicating whether a value is censored (True/False or 1/0).
+            Default: "Below LOQ".
+        loq_col : str, optional
+            Column name containing the Limit of Quantification (LOQ) values.
+            Required when `loq_replacement=True`. Default: "LOQ".
+        loq_replacement : bool, optional
+            Whether to fall back to LOQ-based substitution when ROS cannot be applied
+            (i.e., fewer than 3 detected values or all values are censored).
+            - If True (default): censored values are replaced with `LOQ * loq_factor`,
+              and detected values are kept as-is (or replaced with their mean if ROS
+              is not available).
+            - If False: rows that cannot be modeled by ROS are left as NaN in the
+              'modeled' column.
+        loq_factor : float, optional
+            Multiplication factor applied to LOQ when falling back to LOQ substitution.
+            Default is 0.5 (i.e., LOQ / 2). Only used when `loq_replacement=True`.
+
+        Returns:
+        --------
+        pandas.DataFrame
+            A copy of the input DataFrame with an additional 'modeled' column containing:
+            - ROS-modeled values for substances where ROS was applicable.
+            - LOQ * loq_factor substitutions for censored values of substances where
+              ROS was not applicable (if `loq_replacement=True`).
+            - NaN for rows that could not be modeled and `loq_replacement=False`.
+
+        Notes:
+        ------
+        - The method expects a column named "Substance" in the DataFrame to group observations
+          by substance. Each substance is modeled independently.
+        - When `loq_replacement=True` and a substance has some (but fewer than 3) detected
+          values, the detected values are assigned their observed mean and censored values
+          are assigned LOQ * loq_factor.
+        - When `loq_replacement=True` and no detected values exist at all, all rows for
+          that substance are assigned LOQ * loq_factor.
+        - A warning is printed for each substance where LOQ replacement is triggered.
+
+        Examples:
+        ---------
+        ```python
+        ros = ROS(distribution="log-normal")
+
+        # With LOQ/2 fallback (default behavior)
+        df_result = ros.fit_dataframe(df, loq_replacement=True, loq_factor=0.5)
+
+        # Strict ROS only — no substitution, unmodelable values left as NaN
+        df_result = ros.fit_dataframe(df, loq_replacement=False)
+
+        # Custom substitution factor (e.g., LOQ / 3)
+        df_result = ros.fit_dataframe(df, loq_replacement=True, loq_factor=1/3)
+        ```
+        """
+        # Create a copy of the original DataFrame
+        df_result = df.copy()
+        df_result["modeled"] = np.nan  # Initialize new column
+        
+        # Store original indices to maintain order
+        df_result["original_index"] = df_result.index
+        
+        for substance in df["Substance"].unique():
+            # Filter for specific substance
+            df_sub = df[df["Substance"] == substance].copy()
+            df_sub["original_index"] = df_sub.index
+            
+            # Preprocess data
+            obs = df_sub[concentration_col].values
+            censored = df_sub[censored_col].values
+            loq = df_sub[loq_col].values if loq_col in df_sub.columns else None
+            
+            # Mask for valid observations (non-negative and non-NaN)
+            valid_mask = ~np.isnan(obs) & (obs >= 0)
+            obs = obs[valid_mask]
+            censored = censored[valid_mask]
+            loq = loq[valid_mask] if loq is not None else None
+            original_indices = df_sub.loc[valid_mask, "original_index"].values
+            
+            # Warning for high proportion of censored values
+            cen_proportion = np.sum(censored) / len(censored) if len(censored) > 0 else 0
+            if cen_proportion > 0.8:
+                if np.sum(~censored) == 0:
+                    print(f"⚠️ WARNING: No detected values for {substance}.")
+                    
+                    if loq_replacement:
+                        # If all values are censored, use LOQ * loq_factor for all values
+                        if loq is not None:
+                            df_result.loc[df_result["Substance"] == substance, "modeled"] = loq / (1 / loq_factor)
+                        else:
+                            print(f"   → Cannot apply LOQ replacement for {substance}: no LOQ column provided.")
+                    continue
+                elif np.sum(~censored) < 3:
+                    print(f"⚠️ WARNING: Insufficient detected values for {substance}.")
+            
+            # Handling censored values
+            if np.any(~censored):
+                max_uncensored = np.max(obs[~censored])
+                
+                # Drop censored values that exceed max of uncensored values
+                drop_mask = (obs > max_uncensored) & censored
+                if np.any(drop_mask):
+                    print(f"⚠️ WARNING: Dropped censored values that exceed max of uncensored values for {substance}.")
+                    
+                    # Mark dropped censored values as NaN
+                    obs[drop_mask] = np.nan
+                    censored[drop_mask] = False
+            
+            # Separate valid data
+            valid_mask = ~np.isnan(obs)
+            obs_valid = obs[valid_mask]
+            censored_valid = censored[valid_mask]
+            original_indices_valid = original_indices[valid_mask]
+            
+            # Check if there are enough uncensored values for ROS
+            if np.sum(~censored_valid) >= 3:
+                # Sort data as in original ROS implementation
+                sort_idx = np.argsort(obs_valid)
+                obs_sorted = obs_valid[sort_idx]
+                censored_sorted = censored_valid[sort_idx]
+                orig_indices_sorted = original_indices_valid[sort_idx]
+                
+                # Fit ROS
+                self.fit(obs_sorted, censored_sorted)
+                ros_model = self.to_dataframe()
+                
+                # Add original indices to ros_model
+                ros_model["original_index"] = orig_indices_sorted
+                
+                # Merge modeled values
+                df_sub = df_sub.merge(ros_model[["original_index", "modeled"]], on="original_index", how="left")
+                
+                # Update result DataFrame
+                df_result.loc[df_result["Substance"] == substance, "modeled"] = df_result.loc[
+                    df_result["Substance"] == substance, "original_index"
+                ].map(df_sub.set_index("original_index")["modeled"])
+            
+            else:
+                # Not enough uncensored values for ROS
+                if loq_replacement:
+                    if loq is not None:
+                        modeled_values = np.full(len(df_sub), np.nan)
+                        
+                        # Replace censored values with LOQ * loq_factor
+                        censored_positions = np.where(censored_valid)[0]
+                        modeled_values[censored_positions] = loq[censored_positions] * loq_factor
+                        
+                        # If some uncensored values exist, use their mean for non-censored positions
+                        if np.sum(~censored_valid) > 0:
+                            uncensored_mean = np.mean(obs_valid[~censored_valid])
+                            uncensored_positions = np.where(~censored_valid)[0]
+                            modeled_values[uncensored_positions] = uncensored_mean
+                        
+                        # Assign to result DataFrame using original indices
+                        df_result.loc[df_result["Substance"] == substance, "modeled"] = df_result.loc[
+                            df_result["Substance"] == substance, "original_index"
+                        ].map(dict(zip(df_sub["original_index"], modeled_values)))
+                    else:
+                        print(f"⚠️ WARNING: Cannot apply LOQ replacement for {substance}: no LOQ column provided.")
+                else:
+                    print(f"ℹ️ INFO: ROS not applicable for {substance} (fewer than 3 detected values). "
+                          f"Rows left as NaN (loq_replacement=False).")
+        
+        # Drop temporary index column
+        df_result.drop(columns=["original_index"], inplace=True)
+        
+        return df_result
+    
     
     def plot_qq(self, figsize=(10, 6), title=None):
         """
