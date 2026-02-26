@@ -242,8 +242,8 @@ Feel free to **open an issue** or **submit a pull request** if you:
 
 ## **License**
 
-This project is for **personal use** and does not have a specific license.
-If you wish to use or modify this code, please contact me.
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.  
+You are free to use, modify, and distribute this code, provided you give appropriate credit to the author.
 
 ---
 
