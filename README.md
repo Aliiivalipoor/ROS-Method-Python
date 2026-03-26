@@ -3,7 +3,7 @@
 
 ![Version](https://img.shields.io/badge/version-2.0-blue)
 ![Python](https://img.shields.io/badge/python-3.8%2B-blue)
-![License](https://img.shields.io/badge/license-Personal%20Use-lightgrey)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 
 This repository contains a **Python implementation of the ROS method**, which is used for handling
